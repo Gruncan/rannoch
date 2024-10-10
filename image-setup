@@ -1,3 +1,5 @@
 #!/bin/bash
 
-python3 scripts/image-setup-p.py "$@"
+# TODO Should probably update this to be based on project root directory not relative..
+
+python3 ../scripts/image-setup-p.py "$@"
