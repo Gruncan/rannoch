@@ -1,3 +1,11 @@
 [submodule "meta-juntion"]
 	path = meta-juntion
 	url = git@github.com:Gruncan/meta-juntion.git
+[submodule "meta-raspberrypi"]
+	path = meta-raspberrypi
+	url = https://git.yoctoproject.org/meta-raspberrypi.git
+	branch = kirkstone
+[submodule "meta-openembedded"]
+	path = meta-openembedded
+	url = https://git.openembedded.org/meta-openembedded
+	branch = kirkstone
