@@ -1,49 +1,6 @@
+use crate::vga::vga_image::VgaImage;
+use crate::vga::{Buffer, ColorCode, ScreenChar};
 use core::fmt;
-use volatile::Volatile;
-
-#[allow(dead_code)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[repr(u8)]
-pub enum Color {
-    Black = 0x0,
-    Blue = 0x1,
-    Green = 0x2,
-    Cyan = 0x3,
-    Red = 0x4,
-    Magenta = 0x5,
-    Brown = 0x6,
-    LightGray = 0x7,
-    DarkGray = 0x8,
-    LightBlue = 0x9,
-    LightGreen = 0xa,
-    LightCyan = 0xb,
-    LightRed = 0xc,
-    Pink = 0xd,
-    Yellow = 0xe,
-    White = 0xf,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[repr(transparent)]
-pub(crate) struct ColorCode(u8);
-
-impl ColorCode {
-    pub(crate) fn new(foreground: Color, background: Color) -> Self {
-        Self((background as u8) << 4 | (foreground as u8))
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[repr(C)]
-struct ScreenChar {
-    ascii_character: u8,
-    color_code: ColorCode,
-}
-
-#[repr(transparent)]
-pub(crate) struct Buffer {
-    chars: [[Volatile<ScreenChar>; crate::vga::BUFFER_WIDTH]; crate::vga::BUFFER_HEIGHT],
-}
 
 pub struct Writer {
     column_position: usize,
@@ -51,16 +8,29 @@ pub struct Writer {
     buffer: &'static mut Buffer,
 }
 
+const BLANK_CHAR: ScreenChar = ScreenChar {
+    ascii_character: b' ',
+    color_code: ColorCode::default(),
+};
+
 impl Writer {
-    pub(crate) fn new(
-        column_position: usize,
-        color_code: ColorCode,
-        buffer: &'static mut Buffer,
-    ) -> Self {
+    pub(crate) fn new(column_position: usize, color_code: ColorCode, buffer: &'static mut Buffer) -> Self {
         Self {
             column_position,
             color_code,
             buffer,
+        }
+    }
+
+    pub fn write_image(&mut self, image: &VgaImage) {
+        for row in 0..crate::vga::BUFFER_HEIGHT {
+            for column in 0..crate::vga::BUFFER_WIDTH {
+                if let Some(screen_char) = image.buf[row][column] {
+                    self.buffer.chars[row][column].write(screen_char)
+                } else {
+                    self.buffer.chars[row][column].write(BLANK_CHAR)
+                }
+            }
         }
     }
 
