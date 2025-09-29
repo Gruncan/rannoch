@@ -1,35 +1,5 @@
 use core::fmt;
-use lazy_static::lazy_static;
-use spin::Mutex;
 use volatile::Volatile;
-
-const BUFFER_HEIGHT: usize = 25;
-const BUFFER_WIDTH: usize = 80;
-
-lazy_static! {
-    pub static ref WRITER: Mutex<Writer> = Mutex::new(Writer {
-        column_position: 0,
-        color_code: ColorCode::new(Color::Yellow, Color::Black),
-        buffer: unsafe { &mut *(0xb8000 as *mut Buffer) },
-    });
-}
-
-#[macro_export]
-macro_rules! println {
-    () => (print!("\n"));
-    ($($arg:tt)*) => ($crate::print!("{}\n", format_args!($($arg)*)));
-}
-
-#[macro_export]
-macro_rules! print {
-    ($($arg:tt)*) => ($crate::vga_buffer::_print(format_args!($($arg)*)));
-}
-
-#[doc(hidden)]
-pub fn _print(args: fmt::Arguments) {
-    use core::fmt::Write;
-    WRITER.lock().write_fmt(args).unwrap();
-}
 
 #[allow(dead_code)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -55,10 +25,10 @@ pub enum Color {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(transparent)]
-struct ColorCode(u8);
+pub(crate) struct ColorCode(u8);
 
 impl ColorCode {
-    fn new(foreground: Color, background: Color) -> Self {
+    pub(crate) fn new(foreground: Color, background: Color) -> Self {
         Self((background as u8) << 4 | (foreground as u8))
     }
 }
@@ -71,8 +41,8 @@ struct ScreenChar {
 }
 
 #[repr(transparent)]
-struct Buffer {
-    chars: [[Volatile<ScreenChar>; BUFFER_WIDTH]; BUFFER_HEIGHT],
+pub(crate) struct Buffer {
+    chars: [[Volatile<ScreenChar>; crate::vga::BUFFER_WIDTH]; crate::vga::BUFFER_HEIGHT],
 }
 
 pub struct Writer {
@@ -82,15 +52,27 @@ pub struct Writer {
 }
 
 impl Writer {
+    pub(crate) fn new(
+        column_position: usize,
+        color_code: ColorCode,
+        buffer: &'static mut Buffer,
+    ) -> Self {
+        Self {
+            column_position,
+            color_code,
+            buffer,
+        }
+    }
+
     pub fn write_byte(&mut self, byte: u8) {
         match byte {
             b'\n' => self.new_line(),
             byte => {
-                if self.column_position >= BUFFER_WIDTH {
+                if self.column_position >= crate::vga::BUFFER_WIDTH {
                     self.new_line();
                 }
 
-                let row = BUFFER_HEIGHT - 1;
+                let row = crate::vga::BUFFER_HEIGHT - 1;
                 let col = self.column_position;
 
                 let color_code = self.color_code;
@@ -104,13 +86,13 @@ impl Writer {
     }
 
     fn new_line(&mut self) {
-        for row in 1..BUFFER_HEIGHT {
-            for col in 0..BUFFER_WIDTH {
+        for row in 1..crate::vga::BUFFER_HEIGHT {
+            for col in 0..crate::vga::BUFFER_WIDTH {
                 let character = self.buffer.chars[row][col].read();
                 self.buffer.chars[row - 1][col].write(character);
             }
         }
-        self.clear_row(BUFFER_HEIGHT - 1);
+        self.clear_row(crate::vga::BUFFER_HEIGHT - 1);
         self.column_position = 0;
     }
 
@@ -119,7 +101,7 @@ impl Writer {
             ascii_character: b' ',
             color_code: self.color_code,
         };
-        for col in 0..BUFFER_WIDTH {
+        for col in 0..crate::vga::BUFFER_WIDTH {
             self.buffer.chars[row][col].write(blank);
         }
     }
